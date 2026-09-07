@@ -424,6 +424,10 @@ func printHuman(res verdict.Result, timeDeltas, allocsDeltas []bench.Delta, cfg 
 
 	sorted := append([]bench.Delta(nil), timeDeltas...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+	// Indexed once rather than scanned per benchmark: the loop below looks up
+	// one allocs/op delta for every scored benchmark, and a linear scan there
+	// makes the pairing quadratic in the size of the delta set.
+	allocs := allocsIndex(allocsDeltas)
 	// k mirrors verdict.Decide's Bonferroni family size: the number of
 	// benchmarks compared in this experiment.
 	k := len(sorted)
@@ -446,7 +450,7 @@ func printHuman(res verdict.Result, timeDeltas, allocsDeltas []bench.Delta, cfg 
 		// printed purely as the "why did this get faster" hint program.md's
 		// idea bank tells an agent to look for. Absent when the allocs
 		// comparison itself was unavailable for this benchmark.
-		if a, ok := allocsFor(allocsDeltas, d.Name); ok {
+		if a, ok := allocs[d.Name]; ok {
 			fmt.Printf("  allocs/op             %+6.1f%%  (%.0f -> %.0f)\n", a.PctChange, a.BaseCenter, a.CandCenter)
 		}
 		if d.PctChange > worst {
@@ -498,7 +502,10 @@ func printWarnings(warnings []string) {
 	}
 }
 
-// allocsFor finds the allocs/op delta for the named benchmark.
+// allocsFor finds the allocs/op delta for the named benchmark. It scans,
+// which is right for its one caller: a single lookup, where building a map
+// would cost more than it saves. printHuman, which looks one up per scored
+// benchmark, uses allocsIndex instead.
 func allocsFor(allocsDeltas []bench.Delta, name string) (bench.Delta, bool) {
 	for _, d := range allocsDeltas {
 		if d.Name == name {
@@ -506,4 +513,19 @@ func allocsFor(allocsDeltas []bench.Delta, name string) (bench.Delta, bool) {
 		}
 	}
 	return bench.Delta{}, false
+}
+
+// allocsIndex keys the allocs/op deltas by benchmark name, for a caller that
+// pairs each of many scored benchmarks with its hint. A nil map reads exactly
+// like an empty one, so an unavailable allocs comparison (see
+// pipeline.Measurements) needs no special case at the lookup.
+func allocsIndex(allocsDeltas []bench.Delta) map[string]bench.Delta {
+	if len(allocsDeltas) == 0 {
+		return nil
+	}
+	idx := make(map[string]bench.Delta, len(allocsDeltas))
+	for _, d := range allocsDeltas {
+		idx[d.Name] = d
+	}
+	return idx
 }

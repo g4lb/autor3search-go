@@ -92,7 +92,7 @@ func CompareAll(base, cand *Set, unit string) ([]Delta, error) {
 	var out []Delta
 	var missing []string
 	for _, name := range base.Names() {
-		if _, ok := cand.Values(name, unit); !ok {
+		if !cand.Has(name, unit) {
 			missing = append(missing, name)
 			continue
 		}
