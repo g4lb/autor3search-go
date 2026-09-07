@@ -1,19 +1,18 @@
-//go:build unix
+//go:build unix || windows
 
 package runner
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
-	"syscall"
 	"testing"
 	"time"
 )
 
-func TestProcessGroupTimeoutOnUnix(t *testing.T) {
-	// Verify that process groups kill the entire child process tree on timeout.
+func TestTimeoutKillsTheWholeProcessTree(t *testing.T) {
+	// Verify that a timeout kills the entire child process tree — a process
+	// group on unix, a job object on windows.
 	// go test execs the test binary as a grandchild of the go command.
 	// Without process group setup, a timeout kills only the direct child (go),
 	// leaving the grandchild test binary orphaned and consuming CPU.
@@ -99,7 +98,7 @@ func TestSleeper(t *testing.T) {
 	// The test should pass and the process should already be gone.
 	defer func() {
 		if pid != 0 {
-			syscall.Kill(pid, syscall.SIGKILL)
+			killProcess(pid)
 		}
 	}()
 
@@ -107,21 +106,15 @@ func TestSleeper(t *testing.T) {
 	// process group was signaled on timeout. Poll to avoid race conditions.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		err := syscall.Kill(pid, 0)
-		if errors.Is(err, syscall.ESRCH) {
-			// Process gone: killed with its process group on timeout
+		if !processAlive(pid) {
+			// Gone: killed along with the tree it belonged to.
 			pid = 0 // Don't kill it again in defer
-			return
-		}
-		if err != nil && err != syscall.ESRCH {
-			// Some other error (EPERM, etc.)
-			t.Errorf("Kill(pid, 0): %v", err)
 			return
 		}
 
 		// Process still exists
 		if time.Now().After(deadline) {
-			t.Fatalf("test binary PID %d still alive 5s after timeout; process group was not killed", pid)
+			t.Fatalf("test binary PID %d still alive 5s after timeout; its process tree was not killed", pid)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

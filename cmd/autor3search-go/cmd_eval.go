@@ -101,6 +101,17 @@ func runEvalCtx(ctx context.Context, args []string) int {
 	}
 	defer release()
 
+	// Put this eval and everything it starts into one killable tree, so
+	// `stop -force` can end the benchmark binary along with the eval rather
+	// than orphaning it. A platform that needs no registration returns nil;
+	// a failure costs -force, not the run, so it is reported and stepped
+	// over rather than raised.
+	if err := registerProcessTree(); err != nil {
+		fmt.Fprintf(os.Stderr, "autor3search-go eval: could not group this eval with its "+
+			"subprocesses: %v\n`stop -force` will refuse rather than orphan a benchmark; "+
+			"`stop` and Ctrl+C are unaffected\n", err)
+	}
+
 	// Subprocess output (go build/vet/test/bench) can be large; by default
 	// it is written to run.log rather than streamed, so an unattended agent
 	// never has its context flooded by one experiment's output. -no-log
