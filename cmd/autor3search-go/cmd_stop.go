@@ -125,13 +125,17 @@ func forceStop(ref runRef, grace time.Duration) int {
 	}
 	fmt.Println("eval exited; its benchmark subprocesses were torn down with it")
 
-	// Only tidy up after a SIGKILL, which runs none of eval's own cleanup.
-	// An eval that shut down politely removed its pid file itself, and
+	// Only tidy up after a kill that ran none of eval's own cleanup. An
+	// eval that shut down politely removed its pid file itself, and
 	// deleting unconditionally here would race a NEXT eval that had already
 	// claimed the run: it would hold a lock on an unlinked file, leaving
 	// `status` reporting an idle loop and `stop -force` with nothing to
 	// signal — the brake failing precisely when it is reached for.
-	if killed {
+	//
+	// evalCleansUpAfterItself is false on a platform where -force cannot
+	// ask and can only end the process, so there the pid file is always
+	// ours to clear.
+	if killed || !evalCleansUpAfterItself {
 		if err := state.ClearEvalPID(ref.StateDir); err != nil {
 			fmt.Fprintf(os.Stderr, "autor3search-go stop: %v\n", err)
 			return exitUsage

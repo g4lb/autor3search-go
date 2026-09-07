@@ -8,6 +8,15 @@ import (
 	"syscall"
 )
 
+// evalCleansUpAfterItself is true here: termEval asks eval to shut down and
+// eval removes its own pid file on the way out, so the stopping process
+// must not remove it as well — see the race described in cmd_stop.go.
+const evalCleansUpAfterItself = true
+
+// registerProcessTree has nothing to do. Every descendant inherits eval's
+// process group, which is what killEvalGroup signals.
+func registerProcessTree() error { return nil }
+
 // termEval asks the eval at pid to shut down.
 //
 // SIGTERM, and to the PROCESS rather than to its group, deliberately: eval

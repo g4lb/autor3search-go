@@ -458,14 +458,17 @@ Stated plainly, because performance tools that oversell are worse than useless:
 - **Laptops are noisy.** macOS P/E core scheduling makes numbers jump. Interleaving and
   `-count` mitigate it and `doctor` warns you, but a quiet Linux box gives cleaner
   results.
-- **Windows works, with two gaps.** CI builds and runs the full suite on
-  `windows-latest`, so the harness itself is exercised there, and the run claim
-  is a real lock, so a second `eval` on the same run is refused and `status`
-  sees one in flight. What is still missing needs process groups: `stop -force`
-  is unsupported (use `stop`, which works everywhere, or Ctrl+C), and a
-  benchmark that hits its timeout leaves the test binary behind. `doctor` also
-  skips its disk, load-average and CPU-governor checks, so it warns you about
-  less.
+- **Windows works, with one difference worth knowing.** CI builds and runs the
+  full suite on `windows-latest`, the run claim is a real lock, and a job
+  object gives `eval` the killable process tree a process group gives it
+  elsewhere — so a benchmark that hits its timeout takes its test binary with
+  it, and `stop -force` reaches the benchmark binary rather than orphaning it.
+  The difference: `stop -force` there is immediate rather than a request.
+  Windows offers a process no equivalent of SIGTERM it can act on mid-
+  benchmark, so eval is ended rather than asked, and it does not get to record
+  what it abandoned. Plain `stop` is unaffected and behaves identically
+  everywhere. `doctor` also skips its disk, load-average and CPU-governor
+  checks on Windows, so it warns you about less.
 - **No benchmarks, no value.** This optimizes what it can measure. `init` tells you
   plainly rather than pretending — see [Repos with no benchmarks](#repos-with-no-benchmarks).
 - **A small measurement asymmetry remains.** Each round measures the baseline a

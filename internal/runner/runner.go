@@ -95,7 +95,8 @@ func (r *Runner) Go(ctx context.Context, args ...string) (*Result, error) {
 		cmd.Env = os.Environ()
 	}
 
-	setupProcessGroup(cmd)
+	group := newProcGroup(cmd)
+	defer group.close()
 	cmd.WaitDelay = 10 * time.Second
 
 	const capBytes = 4 * 1024 * 1024 // 4 MB per stream
@@ -104,8 +105,21 @@ func (r *Runner) Go(ctx context.Context, args ...string) (*Result, error) {
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
+	// Start and Wait rather than Run, because a job object — the windows
+	// stand-in for a process group — can only be joined by a process that
+	// already exists. There is no hook inside Run to do it from.
 	start := time.Now()
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("run go %s: %w", strings.Join(args, " "), err)
+	}
+	if aErr := group.attach(cmd); aErr != nil && r.Log != nil {
+		// Not fatal: the command runs, it just loses the guarantee that a
+		// timeout takes its whole tree with it. Said out loud, because the
+		// symptom otherwise is a benchmark binary nobody can account for.
+		fmt.Fprintf(r.Log, "\n[warning] could not group `go %s` with its children: %v\n"+
+			"a timeout may leave its benchmark binary running\n", strings.Join(args, " "), aErr)
+	}
+	err := cmd.Wait()
 
 	// Extract bytes and add truncation markers if needed
 	stdoutBytes := stdout.buf.Bytes()
@@ -132,7 +146,9 @@ func (r *Runner) Go(ctx context.Context, args ...string) (*Result, error) {
 		if errors.As(err, &ee) {
 			res.ExitCode = ee.ExitCode()
 		} else {
-			// The process could not be started at all.
+			// Wait failed for a reason that is not the command's exit
+			// status — a broken pipe to the output writers, say. A failure
+			// to START is returned above, before this point.
 			return nil, fmt.Errorf("run go %s: %w", strings.Join(args, " "), err)
 		}
 	}
