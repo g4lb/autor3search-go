@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -262,7 +263,11 @@ func TestBaselineRejectsTraversalTag(t *testing.T) {
 	if code == exitOK {
 		t.Fatalf("runBaseline accepted a traversal tag %q, want refusal", evilTag)
 	}
-	if !strings.Contains(stderr, evilTag) {
+	// Match the tag as the error PRINTS it, %q-quoted, not raw. On Windows
+	// the tag is backslash-separated, %q escapes each separator, and a
+	// search for the raw string then misses a message that names the tag
+	// perfectly well.
+	if !strings.Contains(stderr, fmt.Sprintf("%q", evilTag)) {
 		t.Errorf("stderr = %q, want it to name the offending tag %q", stderr, evilTag)
 	}
 	if _, statErr := os.Stat(marker); !os.IsNotExist(statErr) {
