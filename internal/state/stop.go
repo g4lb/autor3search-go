@@ -114,18 +114,10 @@ func ClaimEval(stateDir string, pid int) (release func() error, err error) {
 		return nil, fmt.Errorf("write %s: %w", path, err)
 	}
 	return func() error {
-		// Remove before closing: closing drops the lock, and a concurrent
-		// EvalRunning that acquired it in between would otherwise read a
-		// pid file this process is about to delete. Either order leaves the
-		// same end state, and neither can report a live eval that is gone.
-		rmErr := os.Remove(path)
-		if rmErr != nil && os.IsNotExist(rmErr) {
-			rmErr = nil
-		}
-		if closeErr := f.Close(); rmErr == nil {
-			rmErr = closeErr
-		}
-		return rmErr
+		// The order of the remove and the close is platform-specific, and
+		// getting it wrong is silent on one platform or the other; see the
+		// two releaseClaim implementations.
+		return releaseClaim(f, path)
 	}, nil
 }
 

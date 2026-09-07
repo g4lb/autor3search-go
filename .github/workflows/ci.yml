@@ -30,3 +30,32 @@ jobs:
         if: matrix.go == 'stable'
       - name: gofmt
         run: test -z "$(gofmt -l .)"
+
+  # Windows is a build target the code goes out of its way to support —
+  # every syscall-dependent piece has a !unix implementation — but nothing
+  # ever ran it there. It is a DEGRADED platform on purpose: no process
+  # groups, no advisory locks, no `stop -force`. This job guards the part
+  # that must still work: the build, and every test not tagged unix-only.
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      # Before the checkout, and the reason this job has an extra step at
+      # all: the Windows runner image sets core.autocrlf=true, which would
+      # rewrite every checked-out .go file to CRLF. The freeze package
+      # hashes file contents and the template tests compare them byte for
+      # byte, so that rewrite alone would fail tests that have nothing
+      # wrong with them, on this platform only.
+      - run: git config --global core.autocrlf input
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go build ./...
+      - run: go vet ./...
+      # -timeout well above the 10m per-package default: the measuring
+      # tests spend their wall time in child `go test -bench` processes,
+      # and a Windows runner is slow enough at compiling those that the
+      # default would fire on a suite that is merely slow, not stuck. The
+      # job-level timeout above is what actually bounds a hang.
+      - run: go test ./... -count=1 -timeout=30m

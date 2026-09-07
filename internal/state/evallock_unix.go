@@ -47,3 +47,20 @@ func tryLock(f *os.File, how int) (bool, error) {
 func unlock(f *os.File) error {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
 }
+
+// releaseClaim drops the claim ClaimEval took on path, held through f.
+//
+// Remove BEFORE closing: closing drops the flock, and a concurrent
+// EvalRunning that acquired it in between would otherwise read a pid file
+// this process is about to delete. Either order leaves the same end state,
+// and neither can report a live eval that is gone.
+func releaseClaim(f *os.File, path string) error {
+	rmErr := os.Remove(path)
+	if rmErr != nil && os.IsNotExist(rmErr) {
+		rmErr = nil
+	}
+	if closeErr := f.Close(); rmErr == nil {
+		rmErr = closeErr
+	}
+	return rmErr
+}
