@@ -459,10 +459,10 @@ Stated plainly, because performance tools that oversell are worse than useless:
   `-count` mitigate it and `doctor` warns you, but a quiet Linux box gives cleaner
   results.
 - **Windows works, with two gaps.** CI builds and runs the full suite on
-  `windows-latest`, so the harness itself is exercised there. What is missing is
-  everything that needs an advisory lock or a process group: `stop -force` is
-  unsupported (use `stop`, which works everywhere, or Ctrl+C), a second `eval`
-  on the same run is not refused, `status` cannot see a running eval, and a
+  `windows-latest`, so the harness itself is exercised there, and the run claim
+  is a real lock, so a second `eval` on the same run is refused and `status`
+  sees one in flight. What is still missing needs process groups: `stop -force`
+  is unsupported (use `stop`, which works everywhere, or Ctrl+C), and a
   benchmark that hits its timeout leaves the test binary behind. `doctor` also
   skips its disk, load-average and CPU-governor checks, so it warns you about
   less.

@@ -1,4 +1,4 @@
-//go:build unix
+//go:build unix || windows
 
 package main
 
@@ -12,17 +12,15 @@ import (
 
 // The two tests here are the ones that need a claim taken in THIS process
 // to be visible to a second observer in the same process. That is a
-// property of the advisory lock, so they live behind the unix tag next to
-// the other lock tests rather than beside their subjects.
+// property of the lock rather than of either command, so they are tagged to
+// the platforms that have one — flock on unix, LockFileEx on windows —
+// rather than living beside their subjects.
 //
-// On a platform without flock the claim is a no-op (see evallock_other.go):
-// ClaimEval always succeeds, claimHeld always answers "nobody holds it",
-// and so a second eval is NOT refused and `status` reports an idle run
-// while an eval is in flight. Both are real degradations of the tool on
-// that platform, deliberately accepted — `stop -force`, the reason the
-// claim has to distinguish a live eval from a stale pid file, is
-// unsupported there anyway. What must not happen is a test asserting the
-// unix behaviour on a platform whose implementation promises the opposite.
+// Anywhere else the claim is a no-op (see evallock_other.go): ClaimEval
+// always succeeds, claimHeld always answers "nobody holds it", and so a
+// second eval is NOT refused and `status` reports an idle run while an eval
+// is in flight. What must not happen is a test asserting the locked
+// behaviour on a platform whose implementation promises the opposite.
 
 func TestEvalRefusesToRunConcurrentlyWithAnotherEval(t *testing.T) {
 	// Two evals on one run would fight over the same pinned worktree.

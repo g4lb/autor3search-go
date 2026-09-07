@@ -1,11 +1,11 @@
-//go:build !unix
+//go:build !unix && !windows
 
 package state
 
 import "os"
 
-// tryLockExclusive has no advisory-locking equivalent here, so it reports
-// the lock as always available. The consequence is that EvalRunning falls
+// tryLockExclusive has no locking equivalent on a platform that is neither
+// unix nor windows, so it reports the lock as always available. The consequence is that EvalRunning falls
 // back to trusting the pid file's existence, and a pid file left behind by
 // a killed eval reads as "no eval running" — the conservative direction:
 // `stop -force` is unsupported on this platform anyway (see the command's

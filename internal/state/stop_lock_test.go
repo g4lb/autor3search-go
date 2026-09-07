@@ -1,4 +1,4 @@
-//go:build unix
+//go:build unix || windows
 
 package state_test
 
@@ -11,9 +11,10 @@ import (
 	"github.com/g4lb/autor3search-go/internal/state"
 )
 
-// Unix-only: the assertion is that a HELD claim reads as running, which is
-// what the flock in evallock_unix.go provides. Elsewhere tryLockExclusive
-// is a no-op and EvalRunning falls back to the pid file's existence.
+// Tagged to the platforms that have real locks: the assertion is that a
+// HELD claim reads as running, which is what flock provides on unix and
+// LockFileEx on windows. Anywhere else tryLockExclusive is a no-op and
+// EvalRunning falls back to the pid file's existence.
 func TestClaimEvalIsVisibleToEvalRunning(t *testing.T) {
 	dir := t.TempDir()
 	release, err := state.ClaimEval(dir, 4321)
