@@ -10,6 +10,36 @@ import (
 	"time"
 )
 
+// startSleeper starts a process that will not exit on its own, and returns
+// a channel that closes when it does.
+//
+// ping rather than timeout: it does not need a console, which a test
+// process does not have.
+func startSleeper(t *testing.T) (*exec.Cmd, chan error) {
+	t.Helper()
+	cmd := exec.Command("cmd", "/c", "ping", "-n", "60", "127.0.0.1")
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start sleeper: %v", err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	return cmd, done
+}
+
+// mustStillBeRunning is what keeps these tests from passing vacuously. If
+// the sleeper died on its own — ping missing, cmd.exe refusing the
+// arguments — then every "it exited after we terminated the job" assertion
+// below would be satisfied by a process nothing killed.
+func mustStillBeRunning(t *testing.T, done chan error) {
+	t.Helper()
+	select {
+	case err := <-done:
+		t.Fatalf("sleeper exited before anything terminated it (%v); "+
+			"the test would have proved nothing", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+}
+
 // TestTerminateByNameKillsTheTree walks the exact path `stop -force` takes:
 // one process creates a named job and puts a running process in it, and a
 // SECOND, holding nothing but the name, opens it and terminates everything
@@ -24,23 +54,19 @@ func TestTerminateByNameKillsTheTree(t *testing.T) {
 	}
 	defer job.Close()
 
-	// ping rather than timeout: it does not need a console, which a test
-	// process does not have.
-	cmd := exec.Command("cmd", "/c", "ping", "-n", "60", "127.0.0.1")
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start sleeper: %v", err)
-	}
+	cmd, done := startSleeper(t)
 	killed := false
 	defer func() {
 		if !killed && cmd.Process != nil {
 			cmd.Process.Kill()
-			cmd.Wait()
+			<-done
 		}
 	}()
 
 	if err := job.AssignPID(cmd.Process.Pid); err != nil {
 		t.Fatalf("AssignPID: %v", err)
 	}
+	mustStillBeRunning(t, done)
 
 	opened, err := Open(name)
 	if err != nil {
@@ -51,8 +77,6 @@ func TestTerminateByNameKillsTheTree(t *testing.T) {
 		t.Fatalf("Terminate: %v", err)
 	}
 
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
 	select {
 	case <-done:
 		killed = true
@@ -81,27 +105,23 @@ func TestKillOnCloseTakesTheTreeWithIt(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	cmd := exec.Command("cmd", "/c", "ping", "-n", "60", "127.0.0.1")
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start sleeper: %v", err)
-	}
+	cmd, done := startSleeper(t)
 	killed := false
 	defer func() {
 		if !killed && cmd.Process != nil {
 			cmd.Process.Kill()
-			cmd.Wait()
+			<-done
 		}
 	}()
 	if err := job.AssignPID(cmd.Process.Pid); err != nil {
 		t.Fatalf("AssignPID: %v", err)
 	}
+	mustStillBeRunning(t, done)
 
 	if err := job.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
 	select {
 	case <-done:
 		killed = true
