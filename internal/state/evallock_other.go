@@ -12,5 +12,8 @@ import "os"
 // platform-specific implementation), so nothing here signals a pid.
 func tryLockExclusive(f *os.File) (bool, error) { return true, nil }
 
+// tryLockShared is the matching no-op for the read-only probe in claimHeld.
+func tryLockShared(f *os.File) (bool, error) { return true, nil }
+
 // unlock is the matching no-op.
 func unlock(f *os.File) error { return nil }
