@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/g4lb/autor3search-go/internal/gitx"
 	"github.com/g4lb/autor3search-go/internal/profile"
@@ -42,10 +43,6 @@ func runProfile(args []string) int {
 	// Profile destination directory.
 	profileDir := filepath.Join(root, ".autor3search", "profiles")
 
-	// Run profiling. Capture writes directly to profileDir.
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	// Resolve which package(s) actually declare the benchmarks in scope:
 	// `go test -cpuprofile` refuses a pattern matching more than one
 	// package, so ./... is not an option here (unlike eval's plain
@@ -55,6 +52,18 @@ func runProfile(args []string) int {
 		fmt.Fprintf(os.Stderr, "autor3search-go profile: %v\n", err)
 		return exitUsage
 	}
+
+	// Run profiling. Capture writes directly to profileDir.
+	//
+	// config's timeout bounds ONE subprocess phase, and Capture spends one
+	// per package (see profile.Capture, which cannot use ./...). Giving the
+	// whole command a single `timeout` budget while also handing each
+	// package's `go test` the same value means the first package can consume
+	// the entire deadline and every package after it dies part-way with the
+	// report half-written. Scale the outer budget by the number of packages
+	// so each one gets the timeout the config actually promises it.
+	ctx, cancel := context.WithTimeout(context.Background(), timeout*time.Duration(len(dirs)))
+	defer cancel()
 
 	benchPattern := state.BenchPattern(cfg.Benchmarks)
 	report, err := profile.Capture(ctx, root, dirs, benchPattern, cfg.Benchtime, profileDir, timeout)

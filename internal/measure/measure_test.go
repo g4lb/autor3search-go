@@ -11,7 +11,12 @@ import (
 	"github.com/g4lb/autor3search-go/internal/bench"
 )
 
-func TestInterleaveAlternatesBaseAndCandidate(t *testing.T) {
+// TestInterleaveSwapsOrderEachRound pins the ABBA ordering. Always running
+// the baseline first would leave the candidate permanently in the later slot
+// of every round, turning any within-round drift into a constant bias on the
+// score rather than noise that averages out. Swapping means each side leads
+// half the rounds.
+func TestInterleaveSwapsOrderEachRound(t *testing.T) {
 	var order []string
 	base := func(ctx context.Context, r int) (*bench.Set, error) {
 		order = append(order, "base")
@@ -22,19 +27,80 @@ func TestInterleaveAlternatesBaseAndCandidate(t *testing.T) {
 		return mkSet(8), nil
 	}
 
-	b, c, err := Interleave(context.Background(), 3, false, base, cand)
+	b, c, err := Interleave(context.Background(), 4, false, base, cand)
 	if err != nil {
 		t.Fatalf("Interleave: %v", err)
 	}
-	want := []string{"base", "cand", "base", "cand", "base", "cand"}
+	want := []string{"base", "cand", "cand", "base", "base", "cand", "cand", "base"}
 	if !reflect.DeepEqual(order, want) {
 		t.Fatalf("order = %v, want %v", order, want)
 	}
 
 	bv, _ := b.Values("BenchmarkX-8", bench.UnitTime)
 	cv, _ := c.Values("BenchmarkX-8", bench.UnitTime)
-	if len(bv) != 3 || len(cv) != 3 {
-		t.Fatalf("collected %d base and %d cand observations, want 3 and 3", len(bv), len(cv))
+	if len(bv) != 4 || len(cv) != 4 {
+		t.Fatalf("collected %d base and %d cand observations, want 4 and 4", len(bv), len(cv))
+	}
+	// Each side leads exactly half the rounds — the property that cancels
+	// the offset. Counting is what the assertion above is really for; state
+	// it directly so a future reordering cannot satisfy the literal sequence
+	// while breaking the balance.
+	leads := map[string]int{}
+	for i := 0; i < len(order); i += 2 {
+		leads[order[i]]++
+	}
+	if leads["base"] != 2 || leads["cand"] != 2 {
+		t.Errorf("leading rounds = %v, want each side leading 2 of 4", leads)
+	}
+}
+
+// TestInterleaveAttributesResultsToTheRightSide is the assertion the order
+// swap makes possible to get wrong: on a round the candidate leads, its
+// result must still come back as the candidate's. Reversing the run order
+// without reversing the results would silently swap the two sides on half
+// the rounds and invert the score.
+func TestInterleaveAttributesResultsToTheRightSide(t *testing.T) {
+	const baseNs, candNs = 10, 8
+	base := func(ctx context.Context, r int) (*bench.Set, error) { return mkSet(baseNs), nil }
+	cand := func(ctx context.Context, r int) (*bench.Set, error) { return mkSet(candNs), nil }
+
+	b, c, err := Interleave(context.Background(), 4, true, base, cand)
+	if err != nil {
+		t.Fatalf("Interleave: %v", err)
+	}
+	bv, _ := b.Values("BenchmarkX-8", bench.UnitTime)
+	cv, _ := c.Values("BenchmarkX-8", bench.UnitTime)
+	for i, v := range bv {
+		if v != baseNs/1e9 {
+			t.Errorf("baseline observation %d = %v, want the baseline's own value", i, v)
+		}
+	}
+	for i, v := range cv {
+		if v != candNs/1e9 {
+			t.Errorf("candidate observation %d = %v, want the candidate's own value", i, v)
+		}
+	}
+}
+
+// TestInterleavePropagatesErrorFromEitherSlot checks the error message names
+// the side that actually failed, on a round where the candidate runs first.
+func TestInterleavePropagatesErrorFromEitherSlot(t *testing.T) {
+	boom := errors.New("boom")
+	base := func(ctx context.Context, r int) (*bench.Set, error) { return mkSet(1), nil }
+	// Round 1 is candidate-first, so this fails in the leading slot.
+	cand := func(ctx context.Context, r int) (*bench.Set, error) {
+		if r == 1 {
+			return nil, boom
+		}
+		return mkSet(1), nil
+	}
+
+	_, _, err := Interleave(context.Background(), 2, false, base, cand)
+	if !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want boom", err)
+	}
+	if !strings.Contains(err.Error(), "candidate round 1") {
+		t.Errorf("err = %v, want it to name the candidate side", err)
 	}
 }
 

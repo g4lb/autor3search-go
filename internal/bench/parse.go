@@ -135,6 +135,18 @@ func (s *Set) Values(name, unit string) ([]float64, bool) {
 	return out, true
 }
 
+// Has reports whether s holds any observation of one benchmark and unit.
+// It answers the question Values is usually asked only to answer, without
+// Values' defensive copy of the observations.
+func (s *Set) Has(name, unit string) bool {
+	ser, ok := s.Series[name]
+	if !ok {
+		return false
+	}
+	_, ok = ser.Metrics[unit]
+	return ok
+}
+
 // Add appends every observation in other into s, preserving order.
 func (s *Set) Add(other *Set) {
 	for _, name := range other.Names() {

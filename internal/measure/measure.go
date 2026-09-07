@@ -27,6 +27,22 @@ type RoundFunc func(ctx context.Context, round int) (*bench.Set, error)
 // accumulates their observations. When warmup is true an extra leading round is
 // run and discarded, absorbing first-touch effects such as cold caches and
 // on-demand compilation.
+//
+// The two sides SWAP ORDER on every round — base,cand then cand,base — rather
+// than always running base first. Alternating rounds alone cancels drift
+// BETWEEN rounds, but running the sides in a fixed order within each round
+// leaves a systematic offset: the candidate is then always measured one slot
+// later than the baseline, so any drift that is monotonic across a round (a
+// CPU still ramping toward its thermal steady state, a background job that
+// starts mid-run) lands on the candidate in the same direction every single
+// time. Averaging over rounds does not remove it, because it is not noise —
+// it is a constant bias, and it shifts the score the KEEP threshold is
+// compared against. Swapping the order makes each side occupy the first slot
+// half the time, which cancels that term to first order.
+//
+// An odd number of measured rounds cannot be split evenly and leaves one
+// round's worth of the offset behind; an even count — the default is 10 —
+// cancels it exactly.
 func Interleave(ctx context.Context, rounds int, warmup bool, base, cand RoundFunc) (*bench.Set, *bench.Set, error) {
 	if rounds < 2 {
 		return nil, nil, fmt.Errorf("need at least 2 measured rounds, got %d", rounds)
@@ -41,13 +57,9 @@ func Interleave(ctx context.Context, rounds int, warmup bool, base, cand RoundFu
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		b, err := base(ctx, i)
+		b, c, err := round(ctx, i, base, cand)
 		if err != nil {
-			return nil, nil, fmt.Errorf("baseline round %d: %w", i, err)
-		}
-		c, err := cand(ctx, i)
-		if err != nil {
-			return nil, nil, fmt.Errorf("candidate round %d: %w", i, err)
+			return nil, nil, err
 		}
 		if warmup && i == 0 {
 			continue
@@ -56,6 +68,32 @@ func Interleave(ctx context.Context, rounds int, warmup bool, base, cand RoundFu
 		candSet.Add(c)
 	}
 	return baseSet, candSet, nil
+}
+
+// round runs both sides once, baseline first on even rounds and candidate
+// first on odd ones, and returns their results in (baseline, candidate)
+// order however they were run. See Interleave for why the order alternates.
+func round(ctx context.Context, i int, base, cand RoundFunc) (*bench.Set, *bench.Set, error) {
+	first, second := base, cand
+	firstLabel, secondLabel := "baseline", "candidate"
+	if i%2 == 1 {
+		first, second = cand, base
+		firstLabel, secondLabel = "candidate", "baseline"
+	}
+
+	f, err := first(ctx, i)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s round %d: %w", firstLabel, i, err)
+	}
+	s, err := second(ctx, i)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s round %d: %w", secondLabel, i, err)
+	}
+
+	if i%2 == 1 {
+		return s, f, nil
+	}
+	return f, s, nil
 }
 
 // Options configures Run.

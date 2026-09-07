@@ -324,3 +324,141 @@ func TestVerifyReportsSymlinkedPathAsChanged(t *testing.T) {
 		t.Errorf("changed = %v, want [pkg/a_test.go] for a symlinked path", changed)
 	}
 }
+
+// TestRestoreRefusesSymlinkedParentDirectory covers the hole the file-only
+// symlink check left open: the agent replaces the DIRECTORY containing a
+// frozen test with a link pointing outside the repository. Lstat on the file
+// itself then reports an ordinary regular file — it has already followed the
+// link to get there — so a check of the final component alone passes and
+// os.WriteFile deposits the frozen content outside the root.
+func TestRestoreRefusesSymlinkedParentDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation typically needs elevation on Windows")
+	}
+	root, store, m := setup(t)
+
+	outside := t.TempDir()
+	if err := os.RemoveAll(filepath.Join(root, "pkg")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "pkg")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Restore(root, store, m)
+	if err == nil {
+		t.Fatal("Restore through a symlinked parent directory should error, got nil")
+	}
+	if !errors.Is(err, ErrSymlink) {
+		t.Errorf("err = %v, want it to wrap ErrSymlink", err)
+	}
+	if !strings.Contains(err.Error(), "pkg") {
+		t.Errorf("err = %v, want it to name the offending component", err)
+	}
+
+	// The load-bearing assertion: nothing was written through the link.
+	escaped := filepath.Join(outside, "a_test.go")
+	if _, err := os.Stat(escaped); !os.IsNotExist(err) {
+		t.Errorf("Restore wrote outside the repository root at %s", escaped)
+	}
+}
+
+// TestVerifyReportsSymlinkedParentDirectoryAsChanged is the Verify half of
+// TestRestoreRefusesSymlinkedParentDirectory: a frozen file reached through a
+// linked directory must not be read through it and called unchanged.
+func TestVerifyReportsSymlinkedParentDirectoryAsChanged(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation typically needs elevation on Windows")
+	}
+	root, _, m := setup(t)
+
+	// The redirected directory holds byte-for-byte the content setup() froze,
+	// so a Verify that followed the link would see a match and stay silent.
+	outside := t.TempDir()
+	writeFile(t, filepath.Join(outside, "a_test.go"), "package pkg // original\n")
+	if err := os.RemoveAll(filepath.Join(root, "pkg")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "pkg")); err != nil {
+		t.Fatal(err)
+	}
+
+	changed, err := Verify(root, m)
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if len(changed) != 1 || changed[0] != "pkg/a_test.go" {
+		t.Errorf("changed = %v, want [pkg/a_test.go] for a symlinked parent directory", changed)
+	}
+}
+
+// TestSnapshotRefusesSymlinkedParentDirectory keeps a run from ever starting
+// on a tree where a package directory is already a link: freezing through one
+// would record a golden copy the harness cannot promise to restore in place.
+func TestSnapshotRefusesSymlinkedParentDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation typically needs elevation on Windows")
+	}
+	root := t.TempDir()
+	store := filepath.Join(root, StoreDir)
+
+	outside := t.TempDir()
+	writeFile(t, filepath.Join(outside, "a_test.go"), "package pkg // target\n")
+	if err := os.Symlink(outside, filepath.Join(root, "pkg")); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Snapshot(root, store, []string{"pkg/a_test.go"})
+	if err == nil {
+		t.Fatal("Snapshot through a symlinked parent directory should error, got nil")
+	}
+	if !errors.Is(err, ErrSymlink) {
+		t.Errorf("err = %v, want it to wrap ErrSymlink", err)
+	}
+}
+
+// TestRestoreRejectsTamperedStore is the manifest hash earning its keep. The
+// store lives outside the repository but the agent runs as the same OS user,
+// so it can reach it; without this check its rewritten "golden" copy would be
+// restored into the working tree by every eval from then on, and the hash
+// recorded to catch exactly that would go unread.
+func TestRestoreRejectsTamperedStore(t *testing.T) {
+	root, store, m := setup(t)
+
+	const weakened = "package pkg // WEAKENED\n"
+	writeFile(t, filepath.Join(store, "pkg/a_test.go"), weakened)
+	// Make the working tree differ too, so Restore has to consult the store
+	// rather than short-circuiting on an already-matching destination.
+	writeFile(t, filepath.Join(root, "pkg/a_test.go"), "package pkg // agent edit\n")
+
+	_, err := Restore(root, store, m)
+	if err == nil {
+		t.Fatal("Restore from a tampered store should error, got nil")
+	}
+	if !errors.Is(err, ErrStoreTampered) {
+		t.Errorf("err = %v, want it to wrap ErrStoreTampered", err)
+	}
+	if got := readFile(t, filepath.Join(root, "pkg/a_test.go")); got == weakened {
+		t.Error("the tampered content was written into the working tree")
+	}
+}
+
+// TestRestoreSkipsStoreReadWhenUnchanged pins the ordering that makes the
+// steady-state eval cost one read per frozen file instead of two: when the
+// working tree already holds the frozen content, the golden copy is not
+// opened at all. Removing the store entirely is the sharpest way to assert
+// it was not read.
+func TestRestoreSkipsStoreReadWhenUnchanged(t *testing.T) {
+	root, store, m := setup(t)
+
+	if err := os.RemoveAll(store); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := Restore(root, store, m)
+	if err != nil {
+		t.Fatalf("Restore read the store for an unchanged file: %v", err)
+	}
+	if len(changed) != 0 {
+		t.Errorf("changed = %v, want none", changed)
+	}
+}
