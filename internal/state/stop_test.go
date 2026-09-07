@@ -93,6 +93,14 @@ func TestReleasedClaimIsNotReportedAsRunning(t *testing.T) {
 	if _, running, _ := state.EvalRunning(dir); running {
 		t.Fatal("EvalRunning still reports a running eval after the claim was released")
 	}
+	// EvalRunning alone cannot police this on a platform whose locks are
+	// no-ops: there a leftover pid file already reads as "not running", so
+	// a release that failed to delete it looks identical to one that
+	// worked. Assert on the file itself, so the release path is checked
+	// everywhere and not only where flock happens to exist.
+	if _, err := os.Stat(filepath.Join(dir, state.EvalPIDFile)); !os.IsNotExist(err) {
+		t.Fatalf("stat %s after release: err = %v, want the file to be gone", state.EvalPIDFile, err)
+	}
 }
 
 func TestEvalRunningRejectsGarbagePID(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -82,7 +83,12 @@ func lstatIsSymlink(path string) (bool, error) {
 // volume, a checkout under a symlinked mount — is not tampering, and refusing
 // to work there would break ordinary setups.
 func symlinkComponent(root, rel string) (string, error) {
-	parts := strings.Split(filepath.Clean(filepath.ToSlash(rel)), "/")
+	// path.Clean for the same reason as in safeJoin: filepath.Clean would
+	// hand back a backslash-separated path on Windows, the Split on "/"
+	// would yield the whole path as a single element, and every parent
+	// directory would go unchecked — which is exactly the hole this
+	// function exists to close.
+	parts := strings.Split(path.Clean(filepath.ToSlash(rel)), "/")
 	path := root
 	for i, part := range parts {
 		path = filepath.Join(path, part)
@@ -109,11 +115,18 @@ func safeJoin(root, rel string) (string, error) {
 	if filepath.IsAbs(rel) {
 		return "", fmt.Errorf("frozen path %q must be relative", rel)
 	}
-	clean := filepath.Clean(filepath.ToSlash(rel))
+	// path.Clean, not filepath.Clean, and this is the whole point of the
+	// ToSlash above: on Windows filepath.Clean converts the separators
+	// straight back to backslashes, so "../escape_test.go" cleans to
+	// `..\escape_test.go`, the "../" test below does not match, and the
+	// guard admits the very path it exists to reject. path.Clean is
+	// slash-only on every platform, so the check means the same thing
+	// everywhere.
+	clean := path.Clean(filepath.ToSlash(rel))
 	if clean == ".." || strings.HasPrefix(clean, "../") {
 		return "", fmt.Errorf("frozen path %q escapes the repository root", rel)
 	}
-	return filepath.Join(root, clean), nil
+	return filepath.Join(root, filepath.FromSlash(clean)), nil
 }
 
 // Snapshot copies each file into storeDir and records its hash.
