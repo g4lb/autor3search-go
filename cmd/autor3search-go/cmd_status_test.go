@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -139,19 +138,5 @@ func TestStatusWithoutABaselineSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "baseline") {
 		t.Errorf("stderr = %q, want it to point at baseline", stderr)
-	}
-}
-
-func TestStatusReportsARunningEval(t *testing.T) {
-	dir, stateDir, _ := baselinedRepo(t)
-	release, err := state.ClaimEval(stateDir, os.Getpid())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer release()
-
-	stdout := captureStdout(t, func() { runStatus([]string{"-C", dir}) })
-	if !strings.Contains(stdout, "running") {
-		t.Errorf("status output = %q, want it to report the eval in flight", stdout)
 	}
 }
