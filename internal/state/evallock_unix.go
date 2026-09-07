@@ -16,7 +16,24 @@ import (
 // SIGKILL that runs no cleanup. That is exactly the case a stop-and-kill
 // path has to get right — see ClaimEval.
 func tryLockExclusive(f *os.File) (bool, error) {
-	err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	return tryLock(f, syscall.LOCK_EX)
+}
+
+// tryLockShared takes a non-blocking SHARED lock on f, reporting false when
+// an exclusive holder — a running eval — already has it.
+//
+// It exists so the read-only query in claimHeld does not have to take an
+// exclusive lock to find out whether anyone holds one. A shared lock still
+// conflicts with the exclusive lock ClaimEval takes, which is what makes it a
+// valid probe, but two concurrent probes no longer conflict with EACH OTHER:
+// a `status` and a `stop` looking at the same run at the same moment used to
+// serialize, and either could report the other as the running eval.
+func tryLockShared(f *os.File) (bool, error) {
+	return tryLock(f, syscall.LOCK_SH)
+}
+
+func tryLock(f *os.File, how int) (bool, error) {
+	err := syscall.Flock(int(f.Fd()), how|syscall.LOCK_NB)
 	if err == nil {
 		return true, nil
 	}

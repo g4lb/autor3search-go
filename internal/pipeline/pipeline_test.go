@@ -3,6 +3,8 @@ package pipeline
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -885,5 +887,131 @@ func TestEvalKeepsFrozenTestsAtOriginalCommitAfterBaselineAdvances(t *testing.T)
 	}
 	if env.Base.Commit != frozenAnchor {
 		t.Fatalf("frozen Commit anchor changed from %s to %s — it must never advance", frozenAnchor, env.Base.Commit)
+	}
+}
+
+// TestEvalFailsOnSymlinkSwappedTestDirectory is the directory-level sibling of
+// TestEvalFailsOnSymlinkSwappedTestFile. Replacing the DIRECTORY a frozen test
+// lives in redirects Restore's write exactly as replacing the file does, but
+// leaves the file itself looking like an ordinary regular file to anything
+// that stats it after following the link.
+func TestEvalFailsOnSymlinkSwappedTestDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation typically needs elevation on Windows")
+	}
+	if testing.Short() {
+		t.Skip("runs the real correctness gates; skipped in -short")
+	}
+	env := setupRunWithBenchmarks(t, nil, map[string]string{
+		"sub/sub.go":      "package sub\n\nfunc Add(a, b int) int { return a + b }\n",
+		"sub/sub_test.go": "package sub\n\nimport \"testing\"\n\nfunc TestAdd(t *testing.T) {\n\tif Add(1, 2) != 3 {\n\t\tt.Fatal(\"bad\")\n\t}\n}\n",
+	})
+
+	outside := t.TempDir()
+	if err := os.RemoveAll(filepath.Join(env.Root, "sub")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(env.Root, "sub")); err != nil {
+		t.Fatal(err)
+	}
+	commit(t, env.Root, "swap frozen test directory for a symlink")
+
+	res, _, err := Eval(context.Background(), env.Options())
+	if err != nil {
+		t.Fatalf("Eval returned a Go error %v, want a FAIL verdict instead", err)
+	}
+	if res.Status != verdict.StatusFail || res.Reason != verdict.ReasonSymlinkSwap {
+		t.Fatalf("status = %s/%s, want FAIL/symlink_swap\nlog:\n%s", res.Status, res.Reason, env.Log)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "sub_test.go")); !os.IsNotExist(err) {
+		t.Errorf("Eval wrote a frozen test outside the repository root")
+	}
+}
+
+// TestEvalFailsOnTamperedFrozenStore asserts the frozen store is checked
+// against the hash recorded at baseline, not trusted. The store lives outside
+// the repository but the agent runs as the same OS user; without this it could
+// rewrite its own golden tests once and have them restored on every eval.
+func TestEvalFailsOnTamperedFrozenStore(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the real correctness gates; skipped in -short")
+	}
+	env := setupRun(t)
+
+	stored := filepath.Join(env.StateDir, freeze.StoreDir, "wordcount_test.go")
+	original, err := os.ReadFile(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(stored, append(original, []byte("\n// weakened\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Make the working copy differ too, so Restore has to consult the store
+	// rather than short-circuiting on an already-matching destination.
+	if err := os.WriteFile(filepath.Join(env.Root, "wordcount_test.go"),
+		append(original, []byte("\n// agent edit\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res, _, err := Eval(context.Background(), env.Options())
+	if err != nil {
+		t.Fatalf("Eval returned a Go error %v, want a FAIL verdict instead", err)
+	}
+	if res.Status != verdict.StatusFail || res.Reason != verdict.ReasonFrozenTampered {
+		t.Fatalf("status = %s/%s, want FAIL/frozen_store_tampered\nlog:\n%s", res.Status, res.Reason, env.Log)
+	}
+}
+
+// TestEvalFailsWhenFrozenTestIsUndiscoverable exercises the second half of
+// the added/missing pair: a manifest entry that discover.TestFiles cannot
+// see. Restore leaves such a file alone — it is present and matches — so
+// nothing downstream notices that a frozen test has dropped out of the set
+// the run scores against.
+//
+// The state is built directly rather than through a story, because with the
+// symlink hole closed there is no remaining route an agent can take to reach
+// it: this is the invariant guard that catches the NEXT one, not a
+// reproduction of a live bypass. A file under testdata/ is the shape the
+// walker refuses to descend into, so it stands in for any future divergence
+// between what is frozen and what is discoverable.
+func TestEvalFailsWhenFrozenTestIsUndiscoverable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the real correctness gates; skipped in -short")
+	}
+	env := setupRun(t)
+
+	const rel = "testdata/hidden_test.go"
+	const content = "package testdata\n"
+	hidden := filepath.Join(env.Root, rel)
+	if err := os.MkdirAll(filepath.Dir(hidden), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(hidden, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	commit(t, env.Root, "add a test file the walker skips")
+
+	// Freeze it after the fact, the way a manifest that has fallen out of
+	// step with the walker would look.
+	manifestPath := filepath.Join(env.StateDir, freeze.ManifestPath)
+	man, err := freeze.LoadManifest(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(content))
+	man.Files[rel] = hex.EncodeToString(sum[:])
+	if err := man.Save(manifestPath); err != nil {
+		t.Fatal(err)
+	}
+
+	res, _, err := Eval(context.Background(), env.Options())
+	if err != nil {
+		t.Fatalf("Eval returned a Go error %v, want a FAIL verdict instead", err)
+	}
+	if res.Status != verdict.StatusFail || res.Reason != verdict.ReasonMissingTestFile {
+		t.Fatalf("status = %s/%s, want FAIL/missing_test_file\nlog:\n%s", res.Status, res.Reason, env.Log)
+	}
+	if !strings.Contains(res.Message, rel) {
+		t.Errorf("message = %q, want it to name the undiscoverable file", res.Message)
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/g4lb/autor3search-go/internal/bench"
@@ -163,8 +164,21 @@ func Eval(ctx context.Context, o Options) (verdict.Result, *Measurements, error)
 		// still propagates as-is.
 		if errors.Is(err, freeze.ErrSymlink) {
 			return verdict.Gate(verdict.StatusFail, verdict.ReasonSymlinkSwap,
-				fmt.Sprintf("%v — a frozen test file must remain a regular file; "+
-					"restore it and rerun", err)), nil, nil
+				fmt.Sprintf("%v — a frozen test file, and every directory on the way to it, "+
+					"must remain a regular file and real directories; restore them and rerun", err)), nil, nil
+		}
+		// A frozen golden copy that no longer matches its recorded hash means
+		// the store itself was rewritten. Like the symlink swap above this is
+		// tampering rather than a harness malfunction, so it earns a FAIL row
+		// in results.tsv and an actionable message — but unlike a symlink it
+		// cannot be undone by fixing the working tree, because the reference
+		// copy is the thing that was lost. The only honest recovery is a new
+		// baseline.
+		if errors.Is(err, freeze.ErrStoreTampered) {
+			return verdict.Gate(verdict.StatusFail, verdict.ReasonFrozenTampered,
+				fmt.Sprintf("%v — the frozen copy this run scores against was modified, so its "+
+					"tests can no longer be trusted. Start a fresh run with "+
+					"'autor3search-go baseline'.", err)), nil, nil
 		}
 		return verdict.Result{}, nil, err
 	}
@@ -172,19 +186,35 @@ func Eval(ctx context.Context, o Options) (verdict.Result, *Measurements, error)
 		fmt.Fprintf(o.Log, "restored %d frozen test file(s): %v\n", len(restored), restored)
 	}
 
-	// 2b. Reject test files that did not exist at baseline.
+	// 2b. The frozen test set and what is actually on disk must agree in BOTH
+	//     directions.
 	//
 	// Restore only rewrites files it froze, and the scope gate above skips
-	// every _test.go. Without this check an agent could ADD a brand-new
+	// every _test.go, so without this check an agent could ADD a brand-new
 	// _test.go — an easier benchmark, or a file shadowing a frozen one — and
-	// neither gate would notice. Any _test.go absent from the manifest and
-	// not explicitly unfrozen by a human is a hard failure.
+	// neither gate would notice.
+	//
+	// The reverse direction matters just as much and is easier to miss: a
+	// frozen file that Restore just rewrote should always be visible to the
+	// walker again, so a manifest entry MISSING from present means the walk
+	// could not reach it. discover.TestFiles uses filepath.WalkDir, which does
+	// not descend symlinked directories and skips vendor/testdata/dot-prefixed
+	// names — so a structural change to the tree can hide a frozen test from
+	// discovery while leaving it nominally restored. Checking only the "extra
+	// file" direction would let that pass silently, with the run still scoring
+	// against a benchmark set that no longer runs.
+	//
+	// Both sides are computed against the same o.Cfg.Unfreeze the manifest was
+	// built with — step 1b has already established the config is byte-identical
+	// to baseline — so in a healthy run the two sets are equal.
 	present, err := discover.TestFiles(o.Root, o.Cfg.Unfreeze)
 	if err != nil {
 		return verdict.Result{}, nil, err
 	}
+	seen := make(map[string]bool, len(present))
 	var added []string
 	for _, rel := range present {
+		seen[rel] = true
 		if _, frozen := man.Files[rel]; !frozen {
 			added = append(added, rel)
 		}
@@ -193,6 +223,20 @@ func Eval(ctx context.Context, o Options) (verdict.Result, *Measurements, error)
 		return verdict.Gate(verdict.StatusFail, verdict.ReasonNewTestFile,
 			fmt.Sprintf("test files not present at baseline: %v — the benchmark set is frozen; "+
 				"add them before running 'autor3search-go baseline', or list them in config unfreeze", added)), nil, nil
+	}
+	var missing []string
+	for rel := range man.Files {
+		if !seen[rel] {
+			missing = append(missing, rel)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing) // map iteration order would make the message unstable
+		return verdict.Gate(verdict.StatusFail, verdict.ReasonMissingTestFile,
+			fmt.Sprintf("frozen test files are no longer discoverable in the working tree: %v — "+
+				"they were restored, but the walk that finds test files cannot reach them, so they "+
+				"would not run. Check for a directory on their path that was replaced, renamed, or "+
+				"moved under vendor/, testdata/ or a dot-prefixed name.", missing)), nil, nil
 	}
 
 	r := runner.New(o.Root, timeout, o.Log)

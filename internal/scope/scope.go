@@ -3,6 +3,7 @@ package scope
 
 import (
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -43,8 +44,26 @@ func New(patterns []string) *Matcher {
 }
 
 // Match reports whether rel is inside the allowed scope.
+//
+// rel must be a path relative to the repository root. One that is absolute,
+// or that climbs out of the root, is never in scope no matter what the
+// patterns say — and that has to be rejected explicitly, because it would
+// otherwise be ADMITTED: path.Clean leaves the leading ".." in place, and the
+// default "./..." pattern compiles to a recursive rule with an empty prefix,
+// which matches every path handed to it. So the one pattern that says "the
+// whole repository" would have been the one saying "anywhere on the disk".
+//
+// Nothing produces such a path today — callers pass the output of git
+// diff --name-only and git ls-files, which are always root-relative — so this
+// is the gate refusing to depend on that staying true.
 func (m *Matcher) Match(rel string) bool {
+	if path.IsAbs(rel) || filepath.IsAbs(rel) {
+		return false
+	}
 	rel = path.Clean(strings.TrimPrefix(rel, "./"))
+	if rel == ".." || strings.HasPrefix(rel, "../") {
+		return false
+	}
 	for _, r := range m.rules {
 		if r.recursive {
 			if r.prefix == "" || rel == r.prefix || strings.HasPrefix(rel, r.prefix+"/") {

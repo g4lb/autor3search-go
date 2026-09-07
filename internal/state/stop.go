@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Files a run uses to coordinate between the human's shell and the agent's
@@ -94,7 +95,7 @@ func ClaimEval(stateDir string, pid int) (release func() error, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
-	locked, err := tryLockExclusive(f)
+	locked, err := claimWithRetry(f)
 	if err != nil {
 		f.Close()
 		return nil, fmt.Errorf("lock %s: %w", path, err)
@@ -186,9 +187,52 @@ func readPIDFile(path string) (pid int, present bool, err error) {
 	return pid, true, nil
 }
 
+// claimRetries and claimRetryInterval bound how long ClaimEval waits out a
+// lock it could not take on the first try, before concluding another eval
+// holds it.
+//
+// The two things that can hold the lock are worlds apart in duration: a real
+// eval holds it for the whole experiment (minutes), while claimHeld's
+// read-only probe holds it for the length of one syscall pair. A quarter of a
+// second is far longer than any probe and far shorter than any run, so it
+// separates them cleanly without making a genuine conflict slow to report.
+const (
+	claimRetries       = 5
+	claimRetryInterval = 50 * time.Millisecond
+)
+
+// claimWithRetry takes the claim, retrying briefly rather than failing on the
+// first refusal.
+//
+// Without this, a `status` or `stop` running at the wrong instant can lose an
+// eval its claim: claimHeld has to contend for the lock to find out whether
+// anyone holds it, and an eval starting inside that window sees the refusal
+// and exits reporting a "running eval" that is really a human's read-only
+// query — with a pid read from a stale file, which makes the message wrong
+// as well as spurious. Retrying costs nothing when there is no contention and
+// rides out the probe when there is.
+func claimWithRetry(f *os.File) (bool, error) {
+	for attempt := 0; ; attempt++ {
+		locked, err := tryLockExclusive(f)
+		if err != nil || locked {
+			return locked, err
+		}
+		if attempt >= claimRetries {
+			return false, nil
+		}
+		time.Sleep(claimRetryInterval)
+	}
+}
+
 // claimHeld reports whether some live process holds the claim on path. It
-// answers by trying to take the lock itself: success means nobody held it,
+// answers by trying to take a SHARED lock: success means no exclusive holder,
 // so the pid file is a leftover.
+//
+// Shared rather than exclusive because this is a query. It still conflicts
+// with the exclusive lock ClaimEval takes — which is what makes it a valid
+// test — but two concurrent queries no longer block each other, so a `status`
+// and a `stop` looking at the same run cannot report one another as the
+// running eval.
 func claimHeld(path string) (bool, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0o644)
 	if os.IsNotExist(err) {
@@ -198,7 +242,7 @@ func claimHeld(path string) (bool, error) {
 		return false, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer f.Close()
-	locked, err := tryLockExclusive(f)
+	locked, err := tryLockShared(f)
 	if err != nil {
 		return false, fmt.Errorf("lock %s: %w", path, err)
 	}
