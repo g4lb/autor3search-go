@@ -38,7 +38,10 @@ jobs:
   # that must still work: the build, and every test not tagged unix-only.
   windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    # Well above the -timeout below, deliberately. The job cap firing first
+    # kills the step with "The operation was canceled" and no goroutine
+    # dump, which is exactly the outcome that teaches nothing.
+    timeout-minutes: 45
     steps:
       # Before the checkout, and the reason this job has an extra step at
       # all: the Windows runner image sets core.autocrlf=true, which would
@@ -53,9 +56,11 @@ jobs:
           go-version: stable
       - run: go build ./...
       - run: go vet ./...
-      # -timeout well above the 10m per-package default: the measuring
-      # tests spend their wall time in child `go test -bench` processes,
-      # and a Windows runner is slow enough at compiling those that the
-      # default would fire on a suite that is merely slow, not stuck. The
-      # job-level timeout above is what actually bounds a hang.
-      - run: go test ./... -count=1 -timeout=30m
+      # -timeout is per package and must stay BELOW the job cap, so a stuck
+      # package is killed by go test — which dumps every goroutine and names
+      # the test — rather than by the runner, which says only that the job
+      # was cancelled. 12m is far more than any package needs (the whole
+      # suite is ~100s on a developer machine, and this runner links the
+      # test binaries in seconds) while leaving room for the rest of the
+      # packages to finish after one of them blows up.
+      - run: go test ./... -count=1 -timeout=12m
