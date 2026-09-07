@@ -17,3 +17,25 @@ func tryLockShared(f *os.File) (bool, error) { return true, nil }
 
 // unlock is the matching no-op.
 func unlock(f *os.File) error { return nil }
+
+// releaseClaim drops the claim ClaimEval took on path, held through f.
+//
+// Close BEFORE removing — the opposite of the unix order, and the reason
+// this is a platform-specific helper at all. Windows opens a file without
+// FILE_SHARE_DELETE unless asked, which os.OpenFile does not, so removing a
+// file this process still holds open fails with a sharing violation and
+// leaves eval.pid behind after every eval. The ordering the unix
+// implementation protects has nothing to protect here: the locks in this
+// file are no-ops, so there is no window in which a racing EvalRunning could
+// take the lock and read a doomed pid file — it never consults the lock.
+func releaseClaim(f *os.File, path string) error {
+	closeErr := f.Close()
+	rmErr := os.Remove(path)
+	if rmErr != nil && os.IsNotExist(rmErr) {
+		rmErr = nil
+	}
+	if rmErr != nil {
+		return rmErr
+	}
+	return closeErr
+}

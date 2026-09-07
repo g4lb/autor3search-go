@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -36,6 +37,12 @@ func buildBinary(t *testing.T) string {
 		t.Fatal(err)
 	}
 	bin := filepath.Join(t.TempDir(), "autor3search-go")
+	if runtime.GOOS == "windows" {
+		// Without the extension the file builds fine and then cannot be
+		// executed: Windows resolves an executable by %PATHEXT%, so exec
+		// reports the binary this test just built as not found.
+		bin += ".exe"
+	}
 	cmd := exec.Command("go", "build", "-o", bin, "./cmd/autor3search-go")
 	cmd.Dir = moduleRoot
 	if out, err := cmd.CombinedOutput(); err != nil {

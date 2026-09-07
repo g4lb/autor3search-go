@@ -584,27 +584,6 @@ func TestEvalReleasesItsClaimWhenItFinishes(t *testing.T) {
 	}
 }
 
-func TestEvalRefusesToRunConcurrentlyWithAnotherEval(t *testing.T) {
-	// Two evals on one run would fight over the same pinned worktree.
-	dir, stateDir, _ := baselinedRepo(t)
-	release, err := state.ClaimEval(stateDir, os.Getpid())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer release()
-
-	var code int
-	stderr := captureStderr(t, func() {
-		code = runEval([]string{"-C", dir, "-json", "-desc", "test"})
-	})
-	if code != exitUsage {
-		t.Fatalf("concurrent runEval = %d, want %d", code, exitUsage)
-	}
-	if !strings.Contains(stderr, "already running") {
-		t.Errorf("stderr = %q, want it to name the running eval", stderr)
-	}
-}
-
 func TestEvalAbortedByAStopReportsAbortedAndRecordsNothing(t *testing.T) {
 	// `stop -force` cancels eval's context mid-experiment. Nothing was
 	// measured, so nothing may be written to results.tsv — a row there

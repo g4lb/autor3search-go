@@ -15,42 +15,54 @@ import (
 // swapping the package-level os.Stderr for the duration of one call is safe.
 func captureStderr(t *testing.T, fn func()) string {
 	t.Helper()
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	orig := os.Stderr
-	os.Stderr = w
-	defer func() { os.Stderr = orig }()
-
-	fn()
-
-	w.Close()
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil {
-		t.Fatal(err)
-	}
-	return buf.String()
+	return capture(t, &os.Stderr, fn)
 }
 
-// captureStdout redirects os.Stdout for the duration of fn and returns
-// everything written to it. Tests in this package never run in parallel, so
-// swapping the package-level os.Stdout for the duration of one call is safe.
+// captureStdout is the same for os.Stdout.
 func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	return capture(t, &os.Stdout, fn)
+}
+
+// capture swaps *target for a pipe, runs fn, and returns what fn wrote.
+//
+// The pipe is DRAINED CONCURRENTLY, which is the only part of this that is
+// not obvious. Reading after fn returns deadlocks as soon as fn writes more
+// than the pipe's buffer holds: the write blocks waiting for a reader that
+// cannot exist until the write it is blocking returns. The buffer is what
+// hides this — 64KB on Linux, but the Windows default is a few kilobytes,
+// small enough that one eval's output crosses it, and the test then hangs
+// until the whole package times out with no indication of which write
+// stalled.
+func capture(t *testing.T, target **os.File, fn func()) string {
 	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	orig := os.Stdout
-	os.Stdout = w
-	defer func() { os.Stdout = orig }()
+
+	var buf bytes.Buffer
+	copied := make(chan error, 1)
+	go func() {
+		_, cErr := io.Copy(&buf, r)
+		copied <- cErr
+	}()
+
+	orig := *target
+	*target = w
+	defer func() { *target = orig }()
 
 	fn()
 
-	w.Close()
-	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil {
+	// Close the write end first: io.Copy returns on EOF, which only
+	// arrives once no writer is left holding the pipe open.
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-copied; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Close(); err != nil {
 		t.Fatal(err)
 	}
 	return buf.String()
