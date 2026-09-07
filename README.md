@@ -1,6 +1,7 @@
 # autor3search-go
 
 [![release](https://img.shields.io/github/v/release/g4lb/autor3search-go?label=release)](https://github.com/g4lb/autor3search-go/releases/latest)
+[![ci](https://github.com/g4lb/autor3search-go/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/g4lb/autor3search-go/actions/workflows/ci.yml?query=branch%3Amain)
 
 **Autonomous AI-driven performance optimization for any Go repository.**
 
@@ -457,6 +458,14 @@ Stated plainly, because performance tools that oversell are worse than useless:
 - **Laptops are noisy.** macOS P/E core scheduling makes numbers jump. Interleaving and
   `-count` mitigate it and `doctor` warns you, but a quiet Linux box gives cleaner
   results.
+- **Windows works, with two gaps.** CI builds and runs the full suite on
+  `windows-latest`, so the harness itself is exercised there. What is missing is
+  everything that needs an advisory lock or a process group: `stop -force` is
+  unsupported (use `stop`, which works everywhere, or Ctrl+C), a second `eval`
+  on the same run is not refused, `status` cannot see a running eval, and a
+  benchmark that hits its timeout leaves the test binary behind. `doctor` also
+  skips its disk, load-average and CPU-governor checks, so it warns you about
+  less.
 - **No benchmarks, no value.** This optimizes what it can measure. `init` tells you
   plainly rather than pretending — see [Repos with no benchmarks](#repos-with-no-benchmarks).
 - **A small measurement asymmetry remains.** Each round measures the baseline a
