@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/state"
 )
 
 // The two tests here are the ones that need a claim taken in THIS process

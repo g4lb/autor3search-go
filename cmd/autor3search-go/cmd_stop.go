@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/g4lb/autor3search-go/internal/gitx"
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/gitx"
+	"github.com/autor3search/go/internal/state"
 )
 
 // defaultForceGrace is how long `stop -force` waits for a signalled eval to

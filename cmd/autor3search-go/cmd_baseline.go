@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/g4lb/autor3search-go/internal/config"
-	"github.com/g4lb/autor3search-go/internal/discover"
-	"github.com/g4lb/autor3search-go/internal/freeze"
-	"github.com/g4lb/autor3search-go/internal/gitx"
-	"github.com/g4lb/autor3search-go/internal/results"
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/config"
+	"github.com/autor3search/go/internal/discover"
+	"github.com/autor3search/go/internal/freeze"
+	"github.com/autor3search/go/internal/gitx"
+	"github.com/autor3search/go/internal/results"
+	"github.com/autor3search/go/internal/state"
 )
 
 // runBaseline establishes the fixed reference point for one experiment run:

@@ -5,7 +5,7 @@ package runner
 import (
 	"os/exec"
 
-	"github.com/g4lb/autor3search-go/internal/winjob"
+	"github.com/autor3search/go/internal/winjob"
 )
 
 // procGroup is a Windows job object standing in for a process group.

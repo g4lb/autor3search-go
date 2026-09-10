@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/state"
 )
 
 // The stand-in eval runs as a re-exec of this test binary, so it holds the

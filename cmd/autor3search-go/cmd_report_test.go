@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/results"
+	"github.com/autor3search/go/internal/results"
 )
 
 // TestReportComputesCumulativeSpeedupCorrectly covers the cumulative-speedup

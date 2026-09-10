@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/state"
 )
 
 // TestProfileUsesDeclaredBenchmarks verifies that profile uses the benchmark

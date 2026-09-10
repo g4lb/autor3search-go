@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/config"
+	"github.com/autor3search/go/internal/config"
 )
 
 func TestInitWritesConfigAndProgram(t *testing.T) {

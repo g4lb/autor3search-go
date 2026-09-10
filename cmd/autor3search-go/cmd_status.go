@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/g4lb/autor3search-go/internal/results"
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/results"
+	"github.com/autor3search/go/internal/state"
 )
 
 // runStatus answers "where is this run, and how do I stop it" without

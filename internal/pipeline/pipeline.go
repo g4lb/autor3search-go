@@ -18,17 +18,17 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/g4lb/autor3search-go/internal/bench"
-	"github.com/g4lb/autor3search-go/internal/config"
-	"github.com/g4lb/autor3search-go/internal/discover"
-	"github.com/g4lb/autor3search-go/internal/freeze"
-	"github.com/g4lb/autor3search-go/internal/gitx"
-	"github.com/g4lb/autor3search-go/internal/measure"
-	"github.com/g4lb/autor3search-go/internal/results"
-	"github.com/g4lb/autor3search-go/internal/runner"
-	"github.com/g4lb/autor3search-go/internal/scope"
-	"github.com/g4lb/autor3search-go/internal/state"
-	"github.com/g4lb/autor3search-go/internal/verdict"
+	"github.com/autor3search/go/internal/bench"
+	"github.com/autor3search/go/internal/config"
+	"github.com/autor3search/go/internal/discover"
+	"github.com/autor3search/go/internal/freeze"
+	"github.com/autor3search/go/internal/gitx"
+	"github.com/autor3search/go/internal/measure"
+	"github.com/autor3search/go/internal/results"
+	"github.com/autor3search/go/internal/runner"
+	"github.com/autor3search/go/internal/scope"
+	"github.com/autor3search/go/internal/state"
+	"github.com/autor3search/go/internal/verdict"
 )
 
 // RunLogName is the harness-owned scratch log inside the repository root.

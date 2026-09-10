@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/g4lb/autor3search-go/internal/gitx"
-	"github.com/g4lb/autor3search-go/internal/profile"
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/gitx"
+	"github.com/autor3search/go/internal/profile"
+	"github.com/autor3search/go/internal/state"
 )
 
 // runProfile profiles the declared benchmarks and reports hot spots.

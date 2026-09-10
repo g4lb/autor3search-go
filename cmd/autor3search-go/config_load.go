@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/g4lb/autor3search-go/internal/config"
+	"github.com/autor3search/go/internal/config"
 )
 
 // loadConfig reads root's config and reports a usable error when it cannot.

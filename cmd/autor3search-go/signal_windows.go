@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/g4lb/autor3search-go/internal/winjob"
+	"github.com/autor3search/go/internal/winjob"
 )
 
 // evalCleansUpAfterItself is false here, and that single fact is what the

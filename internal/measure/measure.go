@@ -16,8 +16,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/g4lb/autor3search-go/internal/bench"
-	"github.com/g4lb/autor3search-go/internal/runner"
+	"github.com/autor3search/go/internal/bench"
+	"github.com/autor3search/go/internal/runner"
 )
 
 // RoundFunc produces one round of measurements for one side.

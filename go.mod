@@ -1,4 +1,4 @@
-module github.com/g4lb/autor3search-go
+module github.com/autor3search/go
 
 go 1.21
 

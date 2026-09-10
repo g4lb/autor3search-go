@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/state"
 )
 
 // Tagged to the platforms that have real locks: the assertion is that a

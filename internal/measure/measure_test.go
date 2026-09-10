@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/bench"
+	"github.com/autor3search/go/internal/bench"
 )
 
 // TestInterleaveSwapsOrderEachRound pins the ABBA ordering. Always running

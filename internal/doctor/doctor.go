@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/g4lb/autor3search-go/internal/gitx"
+	"github.com/autor3search/go/internal/gitx"
 )
 
 // Severity indicates how bad a finding is.

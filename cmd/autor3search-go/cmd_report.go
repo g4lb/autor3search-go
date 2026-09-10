@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/g4lb/autor3search-go/internal/gitx"
-	"github.com/g4lb/autor3search-go/internal/results"
+	"github.com/autor3search/go/internal/gitx"
+	"github.com/autor3search/go/internal/results"
 )
 
 // runReport summarizes results.tsv.

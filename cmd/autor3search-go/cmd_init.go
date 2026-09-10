@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/g4lb/autor3search-go/internal/config"
-	"github.com/g4lb/autor3search-go/internal/discover"
-	"github.com/g4lb/autor3search-go/internal/gitx"
-	"github.com/g4lb/autor3search-go/templates"
+	"github.com/autor3search/go/internal/config"
+	"github.com/autor3search/go/internal/discover"
+	"github.com/autor3search/go/internal/gitx"
+	"github.com/autor3search/go/templates"
 )
 
 // gitignoreEntries are the lines init adds to .gitignore. .autor3search/*

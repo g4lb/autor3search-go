@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/state"
 )
 
 // TestMain redirects every run's out-of-tree state into a temporary

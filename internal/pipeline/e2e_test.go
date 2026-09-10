@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/config"
+	"github.com/autor3search/go/internal/config"
 	"gopkg.in/yaml.v3"
 )
 

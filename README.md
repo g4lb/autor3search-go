@@ -1,7 +1,7 @@
 # autor3search-go
 
-[![release](https://img.shields.io/github/v/release/g4lb/autor3search-go?label=release)](https://github.com/g4lb/autor3search-go/releases/latest)
-[![ci](https://github.com/g4lb/autor3search-go/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/g4lb/autor3search-go/actions/workflows/ci.yml?query=branch%3Amain)
+[![release](https://img.shields.io/github/v/release/autor3search/go?label=release)](https://github.com/autor3search/go/releases/latest)
+[![ci](https://github.com/autor3search/go/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/autor3search/go/actions/workflows/ci.yml?query=branch%3Amain)
 
 **Autonomous AI-driven performance optimization for any Go repository.**
 
@@ -20,7 +20,7 @@ is `ns/op` instead of `val_bpb`, and where **correctness is not optional**.
 > found in the tool itself.
 >
 > What version you get, and what changed in it, is on the
-> [releases page](https://github.com/g4lb/autor3search-go/releases) — this README
+> [releases page](https://github.com/autor3search/go/releases) — this README
 > describes the current one.
 
 ---
@@ -34,7 +34,7 @@ paste this:
 Install and run autor3search-go on this repository, then optimize it.
 
 Setup:
-1. go install github.com/g4lb/autor3search-go/cmd/autor3search-go@latest
+1. go install github.com/autor3search/go/cmd/autor3search-go@latest
    Make sure $(go env GOPATH)/bin is on PATH.
 2. autor3search-go init
    Show me the benchmarks it discovered. If it reports none, STOP and tell me:
@@ -103,7 +103,7 @@ both gitignored by `init`.
 ## Quick start
 
 ```bash
-go install github.com/g4lb/autor3search-go/cmd/autor3search-go@latest
+go install github.com/autor3search/go/cmd/autor3search-go@latest
 
 cd your-go-project
 autor3search-go init                                 # find benchmarks, write config + program.md

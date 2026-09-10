@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/g4lb/autor3search-go/internal/gitx"
-	"github.com/g4lb/autor3search-go/internal/state"
+	"github.com/autor3search/go/internal/gitx"
+	"github.com/autor3search/go/internal/state"
 )
 
 // runRef is everything a command needs to address ONE run: where the

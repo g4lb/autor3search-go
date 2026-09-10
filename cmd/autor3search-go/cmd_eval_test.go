@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/bench"
-	"github.com/g4lb/autor3search-go/internal/config"
-	"github.com/g4lb/autor3search-go/internal/gitx"
-	"github.com/g4lb/autor3search-go/internal/results"
-	"github.com/g4lb/autor3search-go/internal/state"
-	"github.com/g4lb/autor3search-go/internal/verdict"
+	"github.com/autor3search/go/internal/bench"
+	"github.com/autor3search/go/internal/config"
+	"github.com/autor3search/go/internal/gitx"
+	"github.com/autor3search/go/internal/results"
+	"github.com/autor3search/go/internal/state"
+	"github.com/autor3search/go/internal/verdict"
 )
 
 // These cover the command layer's own responsibilities — deriving the run

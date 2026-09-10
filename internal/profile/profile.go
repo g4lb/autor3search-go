@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/g4lb/autor3search-go/internal/discover"
-	"github.com/g4lb/autor3search-go/internal/runner"
+	"github.com/autor3search/go/internal/discover"
+	"github.com/autor3search/go/internal/runner"
 )
 
 // PackageReport is the CPU/memory profiling output for one package.

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/g4lb/autor3search-go/internal/config"
-	"github.com/g4lb/autor3search-go/internal/results"
+	"github.com/autor3search/go/internal/config"
+	"github.com/autor3search/go/internal/results"
 )
 
 // TestSessionMultiExperimentSequence is the integration test that would
