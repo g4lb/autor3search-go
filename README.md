@@ -3,6 +3,8 @@
 [![release](https://img.shields.io/github/v/release/autor3search/go?label=release)](https://github.com/autor3search/go/releases/latest)
 [![ci](https://github.com/autor3search/go/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/autor3search/go/actions/workflows/ci.yml?query=branch%3Amain)
 
+[autoresearch for your codebase](https://autor3search.dev/) — the same loop in seven languages, with every agent prompt in one place.
+
 **Autonomous AI-driven performance optimization for any Go repository.**
 
 Point your coding agent at your repo and go to sleep. It proposes an optimization,
